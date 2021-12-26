@@ -7,8 +7,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <None Update="data\code.txt" CopyToOutputDirectory="Always" />
-    <None Update="data\english.txt" CopyToOutputDirectory="Always" />
+    <None Update="data\bigrams\code.txt" CopyToOutputDirectory="Always" />
+    <None Update="data\bigrams\english.txt" CopyToOutputDirectory="Always" />
+
+    <None Update="data\keymaps\4x2.json" CopyToOutputDirectory="Always" />
+
+    <None Update="data\layouts\artsey.json" CopyToOutputDirectory="Always" />
   </ItemGroup>
 
 </Project>
