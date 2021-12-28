@@ -44,6 +44,7 @@ namespace ChordAnalyzer
                     Console.WriteLine($"Layout {file} could not be loaded.");
                     return;
                 }
+                layout.Compile();
                 var keymap = JsonSerializer.Deserialize<Keymap>(File.ReadAllText($"data\\keymaps\\{layout.Keymap}.json"));
                 if (keymap == null)
                 {
@@ -52,8 +53,11 @@ namespace ChordAnalyzer
                 }
                 Console.WriteLine("done");
 
-                Analyze(layout, keymap, "English", englishBigrams);
-                Analyze(layout, keymap, "Code", codeBigrams);
+                decimal weight = CalcWeight(layout, keymap, "a", "b");
+                Console.WriteLine($"Weight: {weight}");
+
+                // Analyze(layout, keymap, "English", englishBigrams);
+                // Analyze(layout, keymap, "Code", codeBigrams);
             }
         }
 
@@ -63,24 +67,30 @@ namespace ChordAnalyzer
             decimal total = 0;
             foreach (var bigram in bigrams)
             {
-                char first = bigram.Value[0];
-                var actions = new List<List<Layout.Action>>();
-                foreach (var layer in layout.Layers.Where(l => l.ContainsKey(first.ToString())))
-                {
-                    var l = new List<Layout.Action>();
-                    l.AddRange(layer[first.ToString()]);
-                    actions.Add(l);
-                }
-                var mapped = GetMapped(layout, first);
-                if (mapped.Count > 0)
-                    actions.Add(mapped);
-                if (actions.Count == 0)
-                    Console.WriteLine($" ** {layout.Name} does not contain a chord for '{first}'.");
-
+                score += CalcWeight(layout, keymap, bigram.Value[0].ToString(), bigram.Value[1].ToString());
                 total += bigram.Count;
             }
             score = score * 100 / total;
             Console.WriteLine($"{bigramName} score: {score}");
+        }
+
+        private static decimal CalcWeight(Layout layout, Keymap keymap, params string[] items)
+        {
+            // char first = bigram.Value[0];
+            // var actions = new List<List<Layout.Action>>();
+            // foreach (var layer in layout.Layers.Where(l => l.ContainsKey(first.ToString())))
+            // {
+            //     var l = new List<Layout.Action>();
+            //     l.AddRange(layer[first.ToString()]);
+            //     actions.Add(l);
+            // }
+            // var mapped = GetMapped(layout, first);
+            // if (mapped.Count > 0)
+            //     actions.Add(mapped);
+            // if (actions.Count == 0)
+            //     Console.WriteLine($" ** {layout.Name} does not contain a chord for '{first}'.");
+
+            return 0;
         }
 
         private static List<Layout.Action> GetMapped(Layout layout, char val)
