@@ -10,9 +10,10 @@
     <None Update="data\bigrams\code.txt" CopyToOutputDirectory="Always" />
     <None Update="data\bigrams\english.txt" CopyToOutputDirectory="Always" />
 
-    <None Update="data\keymaps\4x2.json" CopyToOutputDirectory="Always" />
+    <None Update="data\keymaps\5x3_2.json" CopyToOutputDirectory="Always" />
 
-    <None Update="data\layouts\artsey.json" CopyToOutputDirectory="Always" />
+    <None Update="data\layouts\soar.json" CopyToOutputDirectory="Always" />
+    <None Update="data\layouts\test.json" CopyToOutputDirectory="Always" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,27 @@
+{
+    "Name": "Simple Test",
+    "Keymap": "5x3_2",
+    "Chords": {
+        "a": {
+            "Keys": [
+                3
+            ]
+        },
+        "A": {
+            "Keys": [
+                12
+            ]
+        },
+        "b": {
+            "Keys": [
+                1
+            ]
+        },
+        "shift": {
+            "Keys": [
+                5,
+                6
+            ]
+        }
+    }
+}

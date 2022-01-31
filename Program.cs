@@ -44,73 +44,98 @@ namespace ChordAnalyzer
                     Console.WriteLine($"Layout {file} could not be loaded.");
                     return;
                 }
-                layout.Compile();
-                var keymap = JsonSerializer.Deserialize<Keymap>(File.ReadAllText($"data\\keymaps\\{layout.Keymap}.json"));
-                if (keymap == null)
+                var keys = JsonSerializer.Deserialize<Key[]>(File.ReadAllText($"data\\keymaps\\{layout.Keymap}.json"));
+                if (keys == null)
                 {
                     Console.WriteLine($"Keymap {layout.Keymap} could not be loaded.");
                     return;
                 }
                 Console.WriteLine("done");
 
-                decimal weight = CalcWeight(layout, keymap, "a", "b");
-                Console.WriteLine($"Weight: {weight}");
+                // ResultState results = CalcResult(layout, keys, "a", "b");
+                // Console.WriteLine($"(a, b): {results.Weight} [{string.Join(", ", results.Reasons)}]");
+                // results = CalcResult(layout, keys, "A", "b");
+                // Console.WriteLine($"(A, b): {results.Weight} [{string.Join(", ", results.Reasons)}]");
+                // results = CalcResult(layout, keys, "A", "A");
+                // Console.WriteLine($"(A, A): {results.Weight} [{string.Join(", ", results.Reasons)}]");
 
-                // Analyze(layout, keymap, "English", englishBigrams);
-                // Analyze(layout, keymap, "Code", codeBigrams);
+                Analyze(layout, keys, "English", englishBigrams);
             }
         }
 
-        private static void Analyze(Layout layout, Keymap keymap, string bigramName, List<Bigram> bigrams)
-        {
-            decimal score = 0;
+        private static void Analyze(Layout layout, Key[] keys, string bigramName, List<Bigram> bigrams){
             decimal total = 0;
-            foreach (var bigram in bigrams)
-            {
-                score += CalcWeight(layout, keymap, bigram.Value[0].ToString(), bigram.Value[1].ToString());
-                total += bigram.Count;
+            foreach(var bigram in bigrams){
+                var res = CalcResult(layout, keys, bigram.Value[0].ToString(), bigram.Value[1].ToString());
+                total += res.Weight * bigram.Count;                
             }
-            score = score * 100 / total;
-            Console.WriteLine($"{bigramName} score: {score}");
+            Console.WriteLine($"{bigramName} score: {total}");
         }
 
-        private static decimal CalcWeight(Layout layout, Keymap keymap, params string[] items)
+        private static ResultState CalcResult(Layout layout, Key[] keys, params string[] items)
         {
-            // char first = bigram.Value[0];
-            // var actions = new List<List<Layout.Action>>();
-            // foreach (var layer in layout.Layers.Where(l => l.ContainsKey(first.ToString())))
-            // {
-            //     var l = new List<Layout.Action>();
-            //     l.AddRange(layer[first.ToString()]);
-            //     actions.Add(l);
-            // }
-            // var mapped = GetMapped(layout, first);
-            // if (mapped.Count > 0)
-            //     actions.Add(mapped);
-            // if (actions.Count == 0)
-            //     Console.WriteLine($" ** {layout.Name} does not contain a chord for '{first}'.");
+            // generate all possible shifted and unshifted items
+            var steps = new List<List<List<string>>>();
+            foreach (string item in items)
+            {
+                var step = new List<List<string>> { new List<string> { item } };
+                if (Helpers.ShiftMap.ContainsKey(item))
+                    step.Add(new List<string> { Helpers.SHIFT, Helpers.ShiftMap[item] });
+                steps.Add(step);
+            }
 
-            return 0;
+            // generate all combos and combine the lists
+            var combos = new List<List<string>>();
+            foreach (var combo in steps.Cartesian())
+            {
+                var stepList = new List<string>();
+                foreach (var itemSteps in combo)
+                    stepList.AddRange(itemSteps);
+                combos.Add(stepList);
+            }
+
+            // Console.WriteLine("combos: " + string.Join(", ", combos.Select(fil => string.Join(" ", fil))));
+
+            var bestResult = CalcIndividualResult(layout, keys, combos[0]);
+            for (int i = 1; i < combos.Count; i++)
+            {
+                var result = CalcIndividualResult(layout, keys, combos[i]);
+                if ((result.Weight < bestResult.Weight || bestResult.Weight == 0) && result.Weight > 0)
+                    bestResult = result;
+            }
+
+            return bestResult;
         }
 
-        private static List<Layout.Action> GetMapped(Layout layout, char val)
+        private static ResultState CalcIndividualResult(Layout layout, Key[] keys, List<string> items)
         {
-            // TODO - build the action list recursively so that any number of possible
-            // actions works and then all possible combinations are evaluated and the
-            // lowest overall score is picked.
-
-            var res = new List<Layout.Action>();
-            if (ShiftMapper.Map.ContainsKey(val))
+            string? missing = items.FirstOrDefault(i => !layout.Chords.ContainsKey(i));
+            if (missing != null)
             {
-                char mapVal = ShiftMapper.Map[val];
-                var layer = layout.Layers.FirstOrDefault(l => l.ContainsKey("shift"));
-                if (layer != null)
-                    res.AddRange(layer["shift"]);
-                layer = layout.Layers.FirstOrDefault(l => l.ContainsKey(mapVal.ToString()));
-                if (layer != null)
-                    res.AddRange(layer[mapVal.ToString()]);
+                var rs = new ResultState();
+                rs.Reasons.Add($"'{missing}' not present in layout.");
+                return rs;
             }
-            return res;
+
+            var state = CalcState(layout, keys, items[0]);
+            for (int i = 1; i < items.Count; i++)
+                state = CalcState(layout, keys, items[i], state);
+
+            return state;
+        }
+
+        private static ResultState CalcState(Layout layout, Key[] keys, string item, ResultState? prior = null)
+        {
+            var state = prior ?? new ResultState();
+            var action = layout.Chords[item];
+            decimal totalKeyWeight = action.Keys.Sum(k => keys[k].Weight);
+            decimal comboWeight = Helpers.ComboWeight[action.Keys.Length];
+            state.Reasons.Add(action.Keys.Length == 1 ?
+                $"r{keys[action.Keys[0]].Row}c{keys[action.Keys[0]].Column} {keys[action.Keys[0]].Weight}" :
+                $"combo_{comboWeight}({string.Join(", ", action.Keys.Select(k => $"r{keys[k].Row}c{keys[k].Column} {keys[k].Weight}"))})"
+            );
+            state.Weight += (totalKeyWeight * comboWeight);
+            return state;
         }
     }
 }
