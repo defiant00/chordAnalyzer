@@ -52,24 +52,32 @@ namespace ChordAnalyzer
                 }
                 Console.WriteLine("done");
 
-                // ResultState results = CalcResult(layout, keys, "a", "b");
-                // Console.WriteLine($"(a, b): {results.Weight} [{string.Join(", ", results.Reasons)}]");
-                // results = CalcResult(layout, keys, "A", "b");
-                // Console.WriteLine($"(A, b): {results.Weight} [{string.Join(", ", results.Reasons)}]");
-                // results = CalcResult(layout, keys, "A", "A");
-                // Console.WriteLine($"(A, A): {results.Weight} [{string.Join(", ", results.Reasons)}]");
+                ResultState results = CalcResult(layout, keys, "a", "b");
+                Console.WriteLine($"(a, b): {results.Weight} [{string.Join(", ", results.Reasons)}]");
+                results = CalcResult(layout, keys, "c", "d");
+                Console.WriteLine($"(c, d): {results.Weight} [{string.Join(", ", results.Reasons)}]");
+                results = CalcResult(layout, keys, "d", "d");
+                Console.WriteLine($"(d, d): {results.Weight} [{string.Join(", ", results.Reasons)}]");
+                results = CalcResult(layout, keys, "c", "e");
+                Console.WriteLine($"(c, e): {results.Weight} [{string.Join(", ", results.Reasons)}]");
+                results = CalcResult(layout, keys, "e", "c");
+                Console.WriteLine($"(e, c): {results.Weight} [{string.Join(", ", results.Reasons)}]");
+                results = CalcResult(layout, keys, "d", "f");
+                Console.WriteLine($"(d, f): {results.Weight} [{string.Join(", ", results.Reasons)}]");
 
-                Analyze(layout, keys, "English", englishBigrams);
+                // Analyze(layout, keys, "English", englishBigrams);
             }
         }
 
-        private static void Analyze(Layout layout, Key[] keys, string bigramName, List<Bigram> bigrams){
+        private static void Analyze(Layout layout, Key[] keys, string corpusName, List<Bigram> bigrams)
+        {
             decimal total = 0;
-            foreach(var bigram in bigrams){
+            foreach (var bigram in bigrams)
+            {
                 var res = CalcResult(layout, keys, bigram.Value[0].ToString(), bigram.Value[1].ToString());
-                total += res.Weight * bigram.Count;                
+                total += res.Weight * bigram.Count;
             }
-            Console.WriteLine($"{bigramName} score: {total}");
+            Console.WriteLine($"{corpusName} score: {total}");
         }
 
         private static ResultState CalcResult(Layout layout, Key[] keys, params string[] items)
@@ -128,14 +136,64 @@ namespace ChordAnalyzer
         {
             var state = prior ?? new ResultState();
             var action = layout.Chords[item];
+
+            // Base key/chord weight
             decimal totalKeyWeight = action.Keys.Sum(k => keys[k].Weight);
-            decimal comboWeight = Helpers.ComboWeight[action.Keys.Length];
+            decimal chordWeight = Helpers.ChordWeight[action.Keys.Length];
             state.Reasons.Add(action.Keys.Length == 1 ?
-                $"r{keys[action.Keys[0]].Row}c{keys[action.Keys[0]].Column} {keys[action.Keys[0]].Weight}" :
-                $"combo_{comboWeight}({string.Join(", ", action.Keys.Select(k => $"r{keys[k].Row}c{keys[k].Column} {keys[k].Weight}"))})"
+                $"r{keys[action.Keys[0]].Position.Row}c{keys[action.Keys[0]].Position.Column} {keys[action.Keys[0]].Weight}" :
+                $"chord_{chordWeight}({string.Join(", ", action.Keys.Select(k => $"r{keys[k].Position.Row}c{keys[k].Position.Column} {keys[k].Weight}"))})"
             );
-            state.Weight += (totalKeyWeight * comboWeight);
+            state.Weight += (totalKeyWeight * chordWeight);
+
+            // Finger positions
+            int priorChordSize = state.PriorPositions.Count(p => p != null);
+            for (int finger = 0; finger < state.PriorPositions.Length; finger++)
+            {
+                var newPos = FingerPosition(keys, action, finger);
+                var priorPos = state.PriorPositions[finger];
+                if (priorPos != null && newPos != null)
+                {
+                    string fingerName = Helpers.FingerMap[finger];
+                    // Same-finger penalty if:
+                    //   Finger position changed
+                    //   Prior or current chord is just this finger, so don't invoke the hold rules
+                    //   There's at least one key for this finger that doesn't have CanHold set
+                    if (priorPos != newPos ||
+                        priorChordSize == 1 ||
+                        action.Keys.All(k => keys[k].Finger == finger) ||
+                        action.Keys.Any(k => keys[k].Finger == finger && !layout.CanHold.Contains(k)))
+                    {
+                        decimal samePenalty = Helpers.SameFingerPenalty[finger];
+                        state.Reasons.Add($"{fingerName} again ({samePenalty})");
+                        state.Weight += samePenalty;
+                        // Finger movement
+                        if (priorPos != newPos)
+                        {
+                            decimal dist = newPos.Value.Distance(priorPos.Value);
+                            decimal moveWeight = Helpers.FingerMovementWeight[finger];
+                            state.Reasons.Add($"{fingerName} moved ({dist}x{moveWeight})");
+                            state.Weight += (dist * moveWeight);
+                        }
+                    }
+                }
+
+                state.PriorPositions[finger] = newPos;
+            }
+
             return state;
+        }
+
+        private static Position? FingerPosition(Key[] keys, Action action, int finger)
+        {
+            var perFinger = action.Keys.Where(k => keys[k].Finger == finger).ToList();
+            if (perFinger.Count == 0)
+                return null;
+            else if (perFinger.Count == 1)
+                return keys[perFinger[0]].Position;
+            else if (perFinger.Count == 2)
+                return (keys[perFinger[0]].Position + keys[perFinger[1]].Position) / 2;
+            throw new Exception($"Finger {finger} has {perFinger.Count} keys in a single chord.");
         }
     }
 }

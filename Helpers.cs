@@ -6,8 +6,10 @@ namespace ChordAnalyzer
 {
     public static class Helpers
     {
+        // Shift constant
         public const string SHIFT = "shift";
 
+        // Finger names
         public static string[] FingerMap { get; } =
         {
             "Pinky",
@@ -17,7 +19,15 @@ namespace ChordAnalyzer
             "Thumb",
         };
 
-        public static decimal[] ComboWeight { get; } = { 0m, 1m, 0.6m, 1m, 1m, 1m };
+        // Chord multiplier based off of the number of keys held.
+        // Formula: sum(KeyWeights) * ChordWeight
+        public static decimal[] ChordWeight { get; } = { 0m, 1m, 0.6m, 1m, 1m, 1m };
+
+        // Per-finger penalty for using the same finger in a row.
+        public static decimal[] SameFingerPenalty { get; } = { 1m, 1m, 0.7m, 0.5m, 0.8m };
+
+        // Per-finger movement weight.
+        public static decimal[] FingerMovementWeight { get; } = { 1m, 1m, 0.8m, 0.6m, 1m };
 
         public static Dictionary<string, string> ShiftMap { get; } = new()
         {
